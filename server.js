@@ -34,6 +34,10 @@ wss.on('connection', (ws) => {
                     handleSendToHost(ws, data);
                     break;
 
+                case 'gameState':
+                    handleRoomState(ws, data);
+                    break;
+
                 case 'leaveRoom':
                     handleLeaveRoom(ws);
                     break;
@@ -59,11 +63,22 @@ wss.on('connection', (ws) => {
 function handleCreateRoom(ws) {
     const roomId = 'ASDF';
 
-    rooms[roomId] = { host: ws, clients: new Set(), state: 'waiting' };
+    rooms[roomId] = { host: ws, clients: new Set(), state: 'LOBBY' };
     connections.set(ws, { role: 'host', roomId });
 
     ws.send(JSON.stringify({ type: 'roomCreated', roomId }));
     console.log(`Room ${roomId} created by a host`);
+}
+
+function handleRoomState(ws, data) {
+    const connection = connections.get(ws);
+    if (!connection || connection.role !== 'host') {
+        ws.send(JSON.stringify({ type: 'error', message: 'Only hosts can destroy rooms' }));
+        return;
+    }
+
+    const { roomId } = connection;
+    rooms[roomId].state = data['state'];
 }
 
 function handleDestroyRoom(ws) {
