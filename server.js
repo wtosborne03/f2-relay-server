@@ -7,8 +7,11 @@ const rooms = {};  // { roomId: { host: ws, clients: Set<ws>, state: 'waiting' |
 const connections = new Map(); // Map each connection to a role { role: 'host' | 'client', roomId: string }
 
 
-
-const wss = new WebSocket.Server({ port: 8000 });
+const server = https.createServer({
+    key: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem'),
+})
+const wss = new WebSocket.Server({ server });
 
 
 
@@ -256,4 +259,8 @@ function handleDisconnect(ws) {
         }
     }
 }
+
+server.listen(443, "0.0.0.0", () => {
+    console.log('HTTPS server is listening on port 443');
+});
 
