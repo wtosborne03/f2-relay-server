@@ -6,12 +6,10 @@ const rooms = {};  // { roomId: { host: ws, clients: Set<ws>, state: 'waiting' |
 const connections = new Map(); // Map each connection to a role { role: 'host' | 'client', roomId: string }
 
 wss.on('connection', (ws) => {
-    console.log('A new client connected');
 
     ws.on('message', (message) => {
         try {
             const { type, data } = JSON.parse(message);
-            console.log("Type: " + type);
 
             switch (type) {
                 case 'createRoom':
@@ -67,7 +65,6 @@ function handleCreateRoom(ws) {
     connections.set(ws, { role: 'host', roomId });
 
     ws.send(JSON.stringify({ type: 'roomCreated', roomId }));
-    console.log(`Room ${roomId} created by a host`);
 }
 
 function handleRoomState(ws, data) {
@@ -98,23 +95,41 @@ function handleDestroyRoom(ws) {
         delete rooms[roomId];
         connections.delete(ws);
         ws.send(JSON.stringify({ type: 'roomDestroyed' }));
-        console.log(`Room ${roomId} destroyed by host`);
     }
 }
 
 function handleJoinRoom(ws, data) {
     const { roomId, name } = data;
+
     if (!rooms[roomId]) {
         ws.send(JSON.stringify({ type: 'error', message: 'Room not found' }));
         return;
     }
-    if (findConnection(name, roomId)) {
+    if (findConnection(name, roomId) && rooms[roomId].state == 'LOBBY') {
         ws.send(JSON.stringify({ type: 'error', message: 'Name already in use' }));
+        return;
+    }
+    if (rooms[roomId].state != 'LOBBY') {
+        let old_conn = findConnection(name, roomId)
+        let dis = connections.get(old_conn);
+        if (dis != null) {
+            if (dis.alive == false) {
+                // take over disconnected client
+                rooms[roomId].clients.delete(old_conn);
+                connections.delete(old_conn);
+                rooms[roomId].clients.add(ws);
+                connections.set(ws, { role: 'client', roomId, name: name, alive: true });
+                rooms[roomId].host.send(JSON.stringify({ type: 'refreshClient', name: name }));
+                ws.send(JSON.stringify({ type: 'error', message: 'Rejoined the room' }));
+                return;
+            }
+        }
+        ws.send(JSON.stringify({ type: 'error', message: 'The game is currently running' }));
         return;
     }
 
     rooms[roomId].clients.add(ws);
-    connections.set(ws, { role: 'client', roomId, name: name });
+    connections.set(ws, { role: 'client', roomId, name: name, alive: true });
 
     // Notify the host of the new client
     rooms[roomId].host.send(JSON.stringify({ type: 'clientJoined', name: name }));
@@ -122,11 +137,11 @@ function handleJoinRoom(ws, data) {
     // Notify the client that they joined the room
     ws.send(JSON.stringify({ type: 'joinedRoom', roomId, clients: Array.from(rooms[roomId].clients).length }));
 
-    console.log(`A client joined room ${roomId} as ${name}`);
 }
 
 function handleLeaveRoom(ws) {
     const connection = connections.get(ws);
+
     if (!connection || connection.role !== 'client') {
         ws.send(JSON.stringify({ type: 'error', message: 'Only clients can leave rooms' }));
         return;
@@ -142,11 +157,11 @@ function handleLeaveRoom(ws) {
 
         ws.send(JSON.stringify({ type: 'leftRoom', roomId }));
 
-        console.log(`A client left room ${roomId}`);
     }
 }
 function findConnection(name, roomId) {
     room_clients = rooms[roomId].clients;
+    console.log(room_clients);
     for (const client of room_clients) {
         if (connections.get(client)['name'] === name) {
             return client;
@@ -158,7 +173,7 @@ function findConnection(name, roomId) {
 
 function handleSendMessage(ws, data) {
     message = data['message'];
-    console.log(data);
+
     const connection = connections.get(ws);
     if (!connection) {
         ws.send(JSON.stringify({ type: 'error', message: 'Connection not found' }));
@@ -166,6 +181,7 @@ function handleSendMessage(ws, data) {
     }
     const { role, roomId } = connection;
     target = findConnection(data['client_name'], roomId);
+    console.log(target);
 
     if (!target) {
         ws.send(JSON.stringify({ type: 'error', message: 'Target not found' }));
@@ -177,14 +193,11 @@ function handleSendMessage(ws, data) {
 }
 
 function handleSendToHost(ws, data) {
-    console.log(data);
     p_name = connections.get(ws)['name'];
     const connection = connections.get(ws);
     const { role, roomId } = connection;
 
     rooms[roomId].host.send(JSON.stringify({ type: 'clientMessage', data: { name: p_name, message: data['message'] } }));
-
-
 }
 
 function handleStartGame(ws) {
@@ -202,7 +215,6 @@ function handleStartGame(ws) {
         });
 
         ws.send(JSON.stringify({ type: 'gameStarted', roomId }));
-        console.log(`Game started in room ${roomId}`);
     }
 }
 
@@ -216,12 +228,18 @@ function handleDisconnect(ws) {
         // If the host disconnects, destroy the room
         handleDestroyRoom(ws);
     } else if (role === 'client' && rooms[roomId]) {
-        // If a client disconnects
-        p_name = connections.get(ws)['name'];
-        rooms[roomId].clients.delete(ws);
-        rooms[roomId].host.send(JSON.stringify({ type: 'clientLeft', data: { name: p_name } }));
-        connections.delete(ws);
-        console.log(`A client disconnected from room ${roomId}`);
+        if (rooms[roomId].state == 'LOBBY') {
+            // If a client disconnects
+            p_name = connections.get(ws)['name'];
+            rooms[roomId].clients.delete(ws);
+            rooms[roomId].host.send(JSON.stringify({ type: 'clientLeft', data: { name: p_name } }));
+            connections.delete(ws);
+        } else {
+            // If a client disconnects during the game
+            let new_client_data = connections.get(ws);
+            new_client_data.alive = false;
+            connections.set(ws, new_client_data);
+        }
     }
 }
 
