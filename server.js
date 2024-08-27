@@ -1,9 +1,17 @@
 const WebSocket = require('ws');
-const wss = new WebSocket.Server({ port: 8080 });
+const https = require('https');
+const fs = require('fs');
 const utility = require('./utility/code');
 // Store rooms and connections
 const rooms = {};  // { roomId: { host: ws, clients: Set<ws>, state: 'waiting' | 'playing' } }
 const connections = new Map(); // Map each connection to a role { role: 'host' | 'client', roomId: string }
+
+const server = https.createServer({
+    key: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/privkey.pem'),
+    cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem')
+})
+const wss = new WebSocket.Server({ server });
+
 
 wss.on('connection', (ws) => {
 
