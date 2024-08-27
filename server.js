@@ -60,10 +60,17 @@ wss.on('connection', (ws) => {
             ws.send(JSON.stringify({ type: 'error', message: 'Invalid message format' }));
         }
     });
+    ws.on('error', (error) => {
+        console.error('WebSocket error:', error);
+    })
 
     ws.on('close', () => {
         handleDisconnect(ws);
     });
+});
+
+wss.on('error', (error) => {
+    console.error('WebSocket server error:', error);
 });
 
 function handleCreateRoom(ws) {
