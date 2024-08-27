@@ -10,9 +10,11 @@ const connections = new Map(); // Map each connection to a role { role: 'host' |
 try {
     const server = https.createServer({
         key: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/privkey.pem'),
-        cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem')
+        cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem'),
+
+
     })
-    const wss = new WebSocket.Server({ port: 443, server: server });
+    const wss = new WebSocket.Server({ server });
 
 
 
