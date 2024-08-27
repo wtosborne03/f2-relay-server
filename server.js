@@ -260,7 +260,7 @@ function handleDisconnect(ws) {
     }
 }
 
-server.listen(443, () => {
+server.listen(443, "0.0.0.0", () => {
     console.log('HTTPS server is listening on port 443');
 });
 
