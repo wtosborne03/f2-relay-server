@@ -6,11 +6,15 @@ const utility = require('./utility/code');
 const rooms = {};  // { roomId: { host: ws, clients: Set<ws>, state: 'waiting' | 'playing' } }
 const connections = new Map(); // Map each connection to a role { role: 'host' | 'client', roomId: string }
 
-const server = https.createServer({
-    key: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/privkey.pem'),
-    cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem')
-})
-const wss = new WebSocket.Server({ server });
+try {
+    const server = https.createServer({
+        key: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/privkey.pem'),
+        cert: fs.readFileSync('/etc/letsencrypt/live/locktext.xyz/fullchain.pem')
+    })
+    const wss = new WebSocket.Server({ server });
+} catch (err) {
+    console.error(err);
+}
 
 
 wss.on('connection', (ws) => {
@@ -258,5 +262,4 @@ function handleDisconnect(ws) {
     }
 }
 
-console.log('WebSocket server is running on ws://localhost:8080');
 
